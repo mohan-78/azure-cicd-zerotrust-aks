@@ -1,0 +1,133 @@
+# ─────────────────────────────────────────
+# deployment.yaml
+# Tells Kubernetes how to run Flask app
+# How many replicas, which image,
+# health checks, environment variables
+# ─────────────────────────────────────────
+
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: flask-app
+  namespace: default
+  labels:
+    app: flask-app
+
+spec:
+  # ───────────────────────────────────────
+  # REPLICAS
+  # How many copies of pod to run
+  # 2 = high availability
+  # If one pod crashes → other still runs
+  # Users never see downtime!
+  # ───────────────────────────────────────
+  replicas: 2
+
+  # ───────────────────────────────────────
+  # SELECTOR
+  # How Deployment finds its pods
+  # Must match template labels below!
+  # ───────────────────────────────────────
+  selector:
+    matchLabels:
+      app: flask-app
+
+  # ───────────────────────────────────────
+  # TEMPLATE
+  # Blueprint for each pod
+  # ───────────────────────────────────────
+  template:
+    metadata:
+      labels:
+        app: flask-app
+        # This label enables Workload Identity
+        # Webhook injects Azure token into pod!
+        azure.workload.identity/use: "true"
+
+    spec:
+      # ─────────────────────────────────
+      # SERVICE ACCOUNT
+      # Links pod to Managed Identity
+      # Pod gets Azure token automatically
+      # Can access Key Vault! Zero Trust!
+      # ─────────────────────────────────
+      serviceAccountName: flask-service-account
+
+      containers:
+        - name: flask-app
+          # ───────────────────────────────
+          # IMAGE
+          # Docker image from our ACR
+          # Tag comes from pipeline Build ID
+          # Updated automatically each deploy!
+          # ───────────────────────────────
+          image: acrcicdpocdev.azurecr.io/flask-app:latest
+
+          # ───────────────────────────────
+          # PORT
+          # Flask app listens on 5000
+          # Must match EXPOSE in Dockerfile!
+          # ───────────────────────────────
+          ports:
+            - containerPort: 5000
+
+          # ───────────────────────────────
+          # ENVIRONMENT VARIABLES
+          # App reads these at runtime
+          # KEY_VAULT_URL → Flask reads secret
+          # ENVIRONMENT   → dev or prod
+          # APP_VERSION   → shown in / endpoint
+          # ───────────────────────────────
+          env:
+            - name: KEY_VAULT_URL
+              value: "https://kv-cicd-poc-dev.vault.azure.net/"
+            - name: ENVIRONMENT
+              value: "dev"
+            - name: APP_VERSION
+              value: "1.0.0"
+
+          # ───────────────────────────────
+          # LIVENESS PROBE
+          # K8s checks this every 10 seconds
+          # If /health returns non-200 →
+          # K8s restarts the container!
+          # Ensures app is always running!
+          # ───────────────────────────────
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+
+          # ───────────────────────────────
+          # READINESS PROBE
+          # K8s checks before sending traffic
+          # If /health fails → no traffic sent
+          # Pod marked as not ready!
+          # Ensures traffic only goes to
+          # healthy pods!
+          # ───────────────────────────────
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 5000
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+
+          # ───────────────────────────────
+          # RESOURCES
+          # Limits how much CPU and memory
+          # pod can use
+          # Prevents one pod taking
+          # all node resources!
+          # ───────────────────────────────
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "100m"
+            limits:
+              memory: "256Mi"
+              cpu: "200m" 

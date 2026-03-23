@@ -1,0 +1,47 @@
+# ─────────────────────────────────────────
+# service.yaml
+# Exposes Flask app to internet
+# LoadBalancer creates Azure Public IP
+# Routes traffic to Flask pods
+# ─────────────────────────────────────────
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: flask-app-service
+  namespace: default
+  labels:
+    app: flask-app
+
+spec:
+  # ───────────────────────────────────────
+  # TYPE: LoadBalancer
+  # Creates Azure Load Balancer
+  # Gets Public IP automatically!
+  # Without this → app not reachable
+  # from internet!
+  # ───────────────────────────────────────
+  type: LoadBalancer
+
+  # ───────────────────────────────────────
+  # SELECTOR
+  # Which pods to send traffic to?
+  # Must match deployment pod labels!
+  # app: flask-app → finds our pods!
+  # ───────────────────────────────────────
+  selector:
+    app: flask-app
+
+  # ───────────────────────────────────────
+  # PORTS
+  # port: 80 → what user accesses
+  #            http://PUBLIC_IP
+  #            (no :5000 needed!)
+  # targetPort: 5000 → pod's port
+  #             forwards to Flask app
+  # ───────────────────────────────────────
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 5000
