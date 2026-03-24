@@ -1,0 +1,278 @@
+# ─────────────────────────────────────────
+# azure-pipelines.yml
+# Complete CI/CD Pipeline
+# Triggers on push to develop or main
+# 5 Stages: Terraform, Test, Sonar,
+#           Docker, Deploy
+# ─────────────────────────────────────────
+
+trigger:
+  branches:
+    include:
+      - develop
+      - main
+
+variables:
+  # Azure details
+  azureServiceConnection: 'azure-rm-connection'
+  resourceGroupName: 'rg-cicd-poc-dev'
+  aksClusterName: 'aks-cicd-poc-dev'
+  acrName: 'acrcicdpocdev'
+  acrLoginServer: 'acrcicdpocdev.azurecr.io'
+  imageRepository: 'flask-app'
+  keyVaultUrl: 'https://kv-cicd-poc-dev.vault.azure.net/'
+
+  # SonarCloud details
+  sonarCloudOrganization: 'mohanazure7'
+  sonarCloudProjectKey: 'mohanazure7_zero-trust-poc'
+  sonarCloudProjectName: 'zero-trust-poc'
+  sonarServiceConnection: 'sonarcloud-connection'
+
+  # Build details
+  dockerfilePath: '$(Build.SourcesDirectory)/Dockerfile'
+  tag: '$(Build.BuildId)'
+
+# ─────────────────────────────────────────
+# STAGE 1 — TERRAFORM
+# Creates/updates all Azure resources
+# ─────────────────────────────────────────
+stages:
+- stage: Terraform
+  displayName: 'Stage 1 - Terraform Apply'
+  jobs:
+  - job: TerraformApply
+    displayName: 'Terraform Init and Apply'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+
+    - task: TerraformInstaller@1
+      displayName: 'Install Terraform'
+      inputs:
+        terraformVersion: '1.14.5'
+
+    - task: TerraformTaskV4@4
+      displayName: 'Terraform Init'
+      inputs:
+        provider: 'azurerm'
+        command: 'init'
+        workingDirectory: '$(Build.SourcesDirectory)/terraform'
+        backendServiceArm: '$(azureServiceConnection)'
+        backendAzureRmResourceGroupName: '$(resourceGroupName)'
+        backendAzureRmStorageAccountName: 'stterraformpocdev'
+        backendAzureRmContainerName: 'tfstate'
+        backendAzureRmKey: 'dev.terraform.tfstate'
+
+    - task: TerraformTaskV4@4
+      displayName: 'Terraform Apply'
+      inputs:
+        provider: 'azurerm'
+        command: 'apply'
+        workingDirectory: '$(Build.SourcesDirectory)/terraform'
+        commandOptions: '-auto-approve'
+        environmentServiceNameAzureRM: '$(azureServiceConnection)'
+
+# ─────────────────────────────────────────
+# STAGE 2 — BUILD AND TEST
+# Install dependencies and run pytest
+# ─────────────────────────────────────────
+- stage: BuildAndTest
+  displayName: 'Stage 2 - Build and Test'
+  dependsOn: Terraform
+  jobs:
+  - job: RunTests
+    displayName: 'Install and Run Tests'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+
+    - task: UsePythonVersion@0
+      displayName: 'Use Python 3.11'
+      inputs:
+        versionSpec: '3.11'
+        addToPath: true
+
+    - script: |
+        pip install -r app/requirements.txt
+      displayName: 'Install dependencies'
+
+    - script: |
+        pip install pytest pytest-cov
+        pytest app/tests/ \
+          --junitxml=test-results.xml \
+          --cov=app \
+          --cov-report=xml:coverage.xml \
+          -v
+      displayName: 'Run pytest with coverage'
+
+    - task: PublishTestResults@2
+      displayName: 'Publish test results'
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: 'test-results.xml'
+        failTaskOnFailedTests: true
+
+    - task: PublishCodeCoverageResults@2
+      displayName: 'Publish coverage results'
+      inputs:
+        codeCoverageTool: 'Cobertura'
+        summaryFileLocation: 'coverage.xml'
+
+# ─────────────────────────────────────────
+# STAGE 3 — SONARCLOUD
+# Code quality and security analysis
+# ─────────────────────────────────────────
+- stage: SonarCloud
+  displayName: 'Stage 3 - SonarCloud Analysis'
+  dependsOn: BuildAndTest
+  jobs:
+  - job: SonarAnalysis
+    displayName: 'Run SonarCloud Analysis'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+
+    - task: UsePythonVersion@0
+      displayName: 'Use Python 3.11'
+      inputs:
+        versionSpec: '3.11'
+        addToPath: true
+
+    - script: |
+        pip install -r app/requirements.txt
+        pip install pytest pytest-cov
+        pytest app/tests/ \
+          --cov=app \
+          --cov-report=xml:coverage.xml \
+          -v
+      displayName: 'Run tests for coverage'
+
+    - task: SonarCloudPrepare@3
+      displayName: 'Prepare SonarCloud Analysis'
+      inputs:
+        SonarCloud: '$(sonarServiceConnection)'
+        organization: '$(sonarCloudOrganization)'
+        scannerMode: 'CLI'
+        configMode: 'manual'
+        cliProjectKey: '$(sonarCloudProjectKey)'
+        cliProjectName: '$(sonarCloudProjectName)'
+        extraProperties: |
+          sonar.python.coverage.reportPaths=coverage.xml
+          sonar.sources=app
+          sonar.exclusions=app/tests/**
+
+    - task: SonarCloudAnalyze@3
+      displayName: 'Run SonarCloud Analysis'
+
+    - task: SonarCloudPublish@3
+      displayName: 'Publish Quality Gate Result'
+      inputs:
+        pollingTimeoutSec: '300'
+
+# ─────────────────────────────────────────
+# STAGE 4 — DOCKER
+# Build image and push to ACR
+# ─────────────────────────────────────────
+- stage: Docker
+  displayName: 'Stage 4 - Docker Build and Push'
+  dependsOn: SonarCloud
+  jobs:
+  - job: DockerBuildPush
+    displayName: 'Build and Push Docker Image'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+
+    - task: AzureCLI@2
+      displayName: 'Login to ACR'
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          az acr login --name $(acrName)
+
+    - task: Docker@2
+      displayName: 'Build Docker image'
+      inputs:
+        command: 'build'
+        dockerfile: '$(dockerfilePath)'
+        repository: '$(acrLoginServer)/$(imageRepository)'
+        tags: |
+          $(tag)
+          latest
+
+    - task: Docker@2
+      displayName: 'Push Docker image to ACR'
+      inputs:
+        command: 'push'
+        repository: '$(acrLoginServer)/$(imageRepository)'
+        tags: |
+          $(tag)
+          latest
+
+# ─────────────────────────────────────────
+# STAGE 5 — DEPLOY TO AKS
+# Apply K8s manifests and verify
+# ─────────────────────────────────────────
+- stage: Deploy
+  displayName: 'Stage 5 - Deploy to AKS'
+  dependsOn: Docker
+  jobs:
+  - job: DeployToAKS
+    displayName: 'Deploy to AKS'
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+
+    - task: AzureCLI@2
+      displayName: 'Get AKS credentials'
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          az aks get-credentials \
+            --resource-group $(resourceGroupName) \
+            --name $(aksClusterName) \
+            --overwrite-existing
+
+    - task: KubernetesManifest@1
+      displayName: 'Deploy Service Account'
+      inputs:
+        action: 'deploy'
+        connectionType: 'azureResourceManager'
+        azureSubscriptionConnection: '$(azureServiceConnection)'
+        azureResourceGroup: '$(resourceGroupName)'
+        kubernetesCluster: '$(aksClusterName)'
+        manifests: 'k8s/serviceaccount.yaml'
+
+    - task: KubernetesManifest@1
+      displayName: 'Deploy to AKS'
+      inputs:
+        action: 'deploy'
+        connectionType: 'azureResourceManager'
+        azureSubscriptionConnection: '$(azureServiceConnection)'
+        azureResourceGroup: '$(resourceGroupName)'
+        kubernetesCluster: '$(aksClusterName)'
+        manifests: |
+          k8s/deployment.yaml
+          k8s/service.yaml
+        containers: |
+          $(acrLoginServer)/$(imageRepository):$(tag)
+
+    - task: AzureCLI@2
+      displayName: 'Verify deployment'
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          az aks get-credentials \
+            --resource-group $(resourceGroupName) \
+            --name $(aksClusterName) \
+            --overwrite-existing
+          kubectl rollout status deployment/flask-app
+          echo "Getting public IP..."
+          kubectl get service flask-app-service
+
