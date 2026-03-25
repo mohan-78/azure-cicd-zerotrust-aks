@@ -46,11 +46,6 @@ stages:
       name: 'Default'
     steps:
 
-    - task: TerraformInstaller@1
-      displayName: 'Install Terraform'
-      inputs:
-        terraformVersion: '1.14.5'
-
     - task: TerraformTaskV4@4
       displayName: 'Terraform Init'
       inputs:
