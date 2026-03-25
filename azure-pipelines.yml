@@ -43,7 +43,7 @@ stages:
   - job: TerraformApply
     displayName: 'Terraform Init and Apply'
     pool:
-      vmImage: 'ubuntu-latest'
+      vmImage: 'default'
     steps:
 
     - task: TerraformInstaller@1
@@ -83,7 +83,7 @@ stages:
   - job: RunTests
     displayName: 'Install and Run Tests'
     pool:
-      vmImage: 'ubuntu-latest'
+      vmImage: 'default'
     steps:
 
     - task: UsePythonVersion@0
@@ -129,7 +129,7 @@ stages:
   - job: SonarAnalysis
     displayName: 'Run SonarCloud Analysis'
     pool:
-      vmImage: 'ubuntu-latest'
+      vmImage: 'default'
     steps:
 
     - task: UsePythonVersion@0
@@ -180,7 +180,7 @@ stages:
   - job: DockerBuildPush
     displayName: 'Build and Push Docker Image'
     pool:
-      vmImage: 'ubuntu-latest'
+      vmImage: 'default'
     steps:
 
     - task: AzureCLI@2
@@ -222,7 +222,7 @@ stages:
   - job: DeployToAKS
     displayName: 'Deploy to AKS'
     pool:
-      vmImage: 'ubuntu-latest'
+      vmImage: 'default'
     steps:
 
     - task: AzureCLI@2
