@@ -78,26 +78,4 @@ resource "azurerm_key_vault" "kv" {
 # Our Flask app will read this!
 # In real org — DB passwords, API keys
 # would be stored here
-# ─────────────────────────────────────────
-resource "azurerm_key_vault_secret" "app_secret" {
-
-  # Secret name — app uses this name
-  # to look up the secret
-  name         = "app-secret-value"
-
-  # Secret value — what app reads
-  # In real org this would be
-  # an actual password or API key
-  value        = "HelloFromKeyVault-POC-2024"
-
-  # Which Key Vault to store in
-  key_vault_id = azurerm_key_vault.kv.id
-
-  # Depends on Key Vault being ready
-  depends_on = [azurerm_key_vault.kv]
-
-  lifecycle {
-    ignore_changes = [value]
-  }
-}
-
+# ────────────────────────────────────────
