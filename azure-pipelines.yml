@@ -81,11 +81,7 @@ stages:
       name: 'Default'
     steps:
 
-    - task: UsePythonVersion@0
-      displayName: 'Use Python 3.11'
-      inputs:
-        versionSpec: '3.11'
-        addToPath: true
+
 
     - script: |
         pip install -r app/requirements.txt
@@ -127,11 +123,7 @@ stages:
       name: 'Default'
     steps:
 
-    - task: UsePythonVersion@0
-      displayName: 'Use Python 3.11'
-      inputs:
-        versionSpec: '3.11'
-        addToPath: true
+    
 
     - script: |
         pip install -r app/requirements.txt
