@@ -56,7 +56,7 @@ variable "aks_node_size" {
 variable "aks_node_count" {
   description = "Number of AKS nodes"
   type        = number
-  default     = 1
+  default     = 2
 }
 
 # Key Vault name — must be globally unique
@@ -69,6 +69,11 @@ variable "key_vault_name" {
 
 # Storage account for Terraform state
 # Must be globally unique, lowercase only
+variable "storage_account_name" {
+  description = "Storage account name for Terraform state"
+  type        = string
+  default     = "stterraformpocdev"
+}
 
 
 # Tags — org best practice

@@ -80,9 +80,6 @@ stages:
     pool:
       name: 'Default'
     steps:
-
-
-
     - script: |
         pip install -r app/requirements.txt
       displayName: 'Install dependencies'
@@ -98,6 +95,7 @@ stages:
 
     - task: PublishTestResults@2
       displayName: 'Publish test results'
+      condition: always()
       inputs:
         testResultsFormat: 'JUnit'
         testResultsFiles: 'test-results.xml'
@@ -105,9 +103,18 @@ stages:
 
     - task: PublishCodeCoverageResults@2
       displayName: 'Publish coverage results'
+      condition: always()
       inputs:
         codeCoverageTool: 'Cobertura'
         summaryFileLocation: 'coverage.xml'
+
+    - task: PublishPipelineArtifact@1
+      displayName: 'Upload coverage.xml as pipeline artifact'
+      condition: always()
+      inputs:
+        targetPath: 'coverage.xml'
+        artifact: 'coverage-report'
+        publishLocation: 'pipeline'
 
 # ─────────────────────────────────────────
 # STAGE 3 — SONARCLOUD
@@ -125,14 +132,10 @@ stages:
 
     
 
-    - script: |
-        pip install -r app/requirements.txt
-        pip install pytest pytest-cov
-        pytest app/tests/ \
-          --cov=app \
-          --cov-report=xml:coverage.xml \
-          -v
-      displayName: 'Run tests for coverage'
+    - download: current
+      displayName: 'Download coverage.xml from Stage 2'
+      artifact: 'coverage-report'
+      patterns: 'coverage.xml'
 
     - task: SonarCloudPrepare@3
       displayName: 'Prepare SonarCloud Analysis'
@@ -223,6 +226,22 @@ stages:
             --resource-group $(resourceGroupName) \
             --name $(aksClusterName) \
             --overwrite-existing
+
+    - task: AzureCLI@2
+      displayName: 'Inject Managed Identity Client ID into serviceaccount.yaml'
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          CLIENT_ID=$(az identity show \
+            --resource-group $(resourceGroupName) \
+            --name id-cicd-poc-dev \
+            --query clientId -o tsv)
+          sed -i "s/__MANAGED_IDENTITY_CLIENT_ID__/$CLIENT_ID/" k8s/serviceaccount.yaml
+          echo "Injected Client ID: $CLIENT_ID"
+          sed -i "s|__KEY_VAULT_URL__|$(keyVaultUrl)|" k8s/deployment.yaml
+          echo "Injected Key Vault URL: $(keyVaultUrl)"
 
     - task: KubernetesManifest@1
       displayName: 'Deploy Service Account'

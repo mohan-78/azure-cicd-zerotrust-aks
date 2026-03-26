@@ -62,6 +62,7 @@ spec:
           # Updated automatically each deploy!
           # ───────────────────────────────
           image: acrcicdpocdev.azurecr.io/flask-app:latest
+          imagePullPolicy: Always
 
           # ───────────────────────────────
           # PORT
@@ -80,7 +81,7 @@ spec:
           # ───────────────────────────────
           env:
             - name: KEY_VAULT_URL
-              value: "https://kv-cicd-poc-dev.vault.azure.net/"
+              value: "__KEY_VAULT_URL__"
             - name: ENVIRONMENT
               value: "dev"
             - name: APP_VERSION

@@ -12,6 +12,11 @@ output "resource_group_name" {
   value       = azurerm_resource_group.rg.name
 }
 
+output "storage_account_name" {
+  description = "Name of the Storage Account for Terraform state"
+  value       = azurerm_storage_account.tfstate.name
+}
+
 # ─────────────────────────────────────────
 # ACR OUTPUTS
 # Pipeline uses login_server to

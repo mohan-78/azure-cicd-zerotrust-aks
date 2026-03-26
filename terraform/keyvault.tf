@@ -37,7 +37,7 @@ resource "azurerm_key_vault" "kv" {
   # during retention period
   # Extra safety layer!
   # ─────────────────────────────────────
-  purge_protection_enabled = false
+  purge_protection_enabled = true
 
   # ─────────────────────────────────────
   # ACCESS POLICY FOR YOU (DevOps)

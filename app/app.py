@@ -16,12 +16,10 @@ ENVIRONMENT = os.environ.get("ENVIRONMENT", "dev")
 
 
 def get_secret(secret_name: str) -> str:
-    from azure.identity import ManagedIdentityCredential
+    from azure.identity import DefaultAzureCredential
     from azure.keyvault.secrets import SecretClient
 
-    credential = ManagedIdentityCredential(
-        client_id=os.environ.get("AZURE_CLIENT_ID")
-    )
+    credential = DefaultAzureCredential()
     client = SecretClient(
         vault_url=KEY_VAULT_URL,
         credential=credential
