@@ -150,13 +150,20 @@ stages:
     pool:
       name: 'Default'
     steps:
+
+    - checkout: self
+
     - script: |
-        python -m pip install -r app/requirements.txt
+        C:\Python313\python.exe -m pip install -r app/requirements.txt
+        C:\Python313\python.exe -m pip install pytest pytest-cov
       displayName: 'Install dependencies'
 
     - script: |
-        python -m pip install pytest pytest-cov
-        python -m pytest app/tests/ --junitxml=test-results.xml --cov=app --cov-report=xml:coverage.xml -v
+        C:\Python313\python.exe -m pytest app/tests/ ^
+          --junitxml=test-results.xml ^
+          --cov=app ^
+          --cov-report=xml:coverage.xml ^
+          -v
       displayName: 'Run pytest with coverage'
 
     - task: PublishTestResults@2
@@ -164,24 +171,15 @@ stages:
       condition: always()
       inputs:
         testResultsFormat: 'JUnit'
-        testResultsFiles: 'test-results.xml'
+        testResultsFiles: '**/test-results.xml'
         failTaskOnFailedTests: true
 
-    - task: PublishCodeCoverageResults@2
-      displayName: 'Publish coverage results'
-      condition: always()
-      inputs:
-        codeCoverageTool: 'Cobertura'
-        summaryFileLocation: 'coverage.xml'
-
     - task: PublishPipelineArtifact@1
-      displayName: 'Upload coverage.xml as pipeline artifact'
+      displayName: 'Upload coverage.xml as artifact'
       condition: always()
       inputs:
-        targetPath: 'coverage.xml'
+        targetPath: '$(System.DefaultWorkingDirectory)/coverage.xml'
         artifact: 'coverage-report'
-        publishLocation: 'pipeline'
-
 # ─────────────────────────────────────────
 # STAGE 3 — SONARCLOUD
 # Code quality and security analysis
