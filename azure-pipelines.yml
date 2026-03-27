@@ -58,6 +58,41 @@ stages:
         backendAzureRmContainerName: 'tfstate'
         backendAzureRmKey: 'dev.terraform.tfstate'
 
+    - task: AzureCLI@2
+      displayName: 'Import existing Azure resources into Terraform state'
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: 'bash'
+        scriptLocation: 'inlineScript'
+        workingDirectory: '$(Build.SourcesDirectory)/terraform'
+        inlineScript: |
+          SUBSCRIPTION_ID="9e5ee3a1-f944-4c72-84bd-19ab1d56007f"
+
+          # Import AKS if exists in Azure but not in state
+          if az aks show -g $(resourceGroupName) -n $(aksClusterName) &>/dev/null; then
+            if ! C:\terraform\terraform.exe state show azurerm_kubernetes_cluster.aks &>/dev/null; then
+              echo "Importing AKS cluster..."
+              C:\terraform\terraform.exe import azurerm_kubernetes_cluster.aks \
+                /subscriptions/$SUBSCRIPTION_ID/resourceGroups/$(resourceGroupName)/providers/Microsoft.ContainerService/managedClusters/$(aksClusterName)
+            fi
+          fi
+
+          # Import Storage Account if exists but not in state
+          if az storage account show -n stterraformpocdev -g $(resourceGroupName) &>/dev/null; then
+            if ! C:\terraform\terraform.exe state show azurerm_storage_account.tfstate &>/dev/null; then
+              echo "Importing Storage Account..."
+              C:\terraform\terraform.exe import azurerm_storage_account.tfstate \
+                /subscriptions/$SUBSCRIPTION_ID/resourceGroups/$(resourceGroupName)/providers/Microsoft.Storage/storageAccounts/stterraformpocdev
+            fi
+          fi
+
+          # Import Storage Container if exists but not in state
+          if ! C:\terraform\terraform.exe state show azurerm_storage_container.tfstate &>/dev/null; then
+            echo "Importing Storage Container..."
+            C:\terraform\terraform.exe import azurerm_storage_container.tfstate \
+              https://stterraformpocdev.blob.core.windows.net/tfstate || true
+          fi
+
     - task: TerraformTaskV4@4
       displayName: 'Terraform Apply'
       inputs:
