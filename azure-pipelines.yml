@@ -150,6 +150,12 @@ stages:
     pool:
       name: 'Default'
     steps:
+    - task: UsePythonVersion@0
+      displayName: 'Set up Python 3.11'
+      inputs:
+        versionSpec: '3.11'
+        addToPath: true
+
     - script: |
         python -m pip install -r app/requirements.txt
       displayName: 'Install dependencies'
