@@ -93,6 +93,13 @@ stages:
             $LASTEXITCODE = 0
           }
 
+          # Import Federated Identity Credential if not in state
+          if ($stateList -notcontains "azurerm_federated_identity_credential.pod_federated") {
+            Write-Host "Importing Federated Identity Credential..."
+            C:\terraform\terraform.exe import azurerm_federated_identity_credential.pod_federated "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$(resourceGroupName)/providers/Microsoft.ManagedIdentity/userAssignedIdentities/id-cicd-poc-dev/federatedIdentityCredentials/fed-cicd-poc-dev"
+            $LASTEXITCODE = 0
+          }
+
           Write-Host "Import check complete."
           exit 0
 
