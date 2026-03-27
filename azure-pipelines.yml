@@ -151,12 +151,12 @@ stages:
       name: 'Default'
     steps:
     - script: |
-        "C:\Users\Mohan\AppData\Local\Programs\Python\Python313\python.exe" -m pip install -r app/requirements.txt
+        python -m pip install -r app/requirements.txt
       displayName: 'Install dependencies'
 
     - script: |
-        "C:\Users\Mohan\AppData\Local\Programs\Python\Python313\python.exe" -m pip install pytest pytest-cov
-        "C:\Users\Mohan\AppData\Local\Programs\Python\Python313\python.exe" -m pytest app/tests/ --junitxml=test-results.xml --cov=app --cov-report=xml:coverage.xml -v
+        python -m pip install pytest pytest-cov
+        python -m pytest app/tests/ --junitxml=test-results.xml --cov=app --cov-report=xml:coverage.xml -v
       displayName: 'Run pytest with coverage'
 
     - task: PublishTestResults@2
