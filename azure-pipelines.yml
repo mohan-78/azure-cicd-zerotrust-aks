@@ -46,6 +46,31 @@ stages:
       name: 'Default'
     steps:
 
+    - task: AzureCLI@2
+      displayName: 'Clear stale Terraform state lock if exists'
+      inputs:
+        azureSubscription: '$(azureServiceConnection)'
+        scriptType: 'ps'
+        scriptLocation: 'inlineScript'
+        inlineScript: |
+          $ErrorActionPreference = 'Continue'
+          $lease = az storage blob show-lease `
+            --account-name stterraformpocdev `
+            --container-name tfstate `
+            --name dev.terraform.tfstate `
+            --query "properties.lease.status" -o tsv 2>$null
+          if ($lease -eq "locked") {
+            Write-Host "Stale lock detected. Breaking lease..."
+            az storage blob lease break `
+              --account-name stterraformpocdev `
+              --container-name tfstate `
+              --blob-name dev.terraform.tfstate
+            Write-Host "Lease broken."
+          } else {
+            Write-Host "No stale lock found."
+          }
+          exit 0
+
     - task: TerraformTaskV4@4
       displayName: 'Terraform Init'
       inputs:
