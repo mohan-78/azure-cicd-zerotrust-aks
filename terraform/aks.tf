@@ -47,7 +47,7 @@ resource "azurerm_kubernetes_cluster" "aks" {
   # and with the outside world
   # ─────────────────────────────────────
   network_profile {
-    network_plugin = "azure"
+    network_plugin = "kubenet"
     dns_service_ip = "10.0.0.10"
     service_cidr   = "10.0.0.0/16"
   }
@@ -67,16 +67,11 @@ resource "azurerm_kubernetes_cluster" "aks" {
 }
 
 # ─────────────────────────────────────────
-# ROLE ASSIGNMENT — AKS pulls from ACR
-# Gives AKS permission to pull
-# Docker images from our ACR
-# Without this AKS cannot pull images!
-# Uses Managed Identity — no passwords!
+# ROLE ASSIGNMENT — managed manually
+# Run once after AKS is created:
+# az role assignment create \
+#   --assignee <kubelet-object-id> \
+#   --role AcrPull \
+#   --scope <acr-resource-id>
 # ─────────────────────────────────────────
-resource "azurerm_role_assignment" "aks_acr_pull" {
-  principal_id                     = azurerm_kubernetes_cluster.aks.kubelet_identity[0].object_id
-  role_definition_name             = "AcrPull"
-  scope                            = azurerm_container_registry.acr.id
-  skip_service_principal_aad_check = true
-}
 
