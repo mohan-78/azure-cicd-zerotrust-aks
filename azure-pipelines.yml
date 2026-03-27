@@ -66,32 +66,35 @@ stages:
         scriptLocation: 'inlineScript'
         workingDirectory: '$(Build.SourcesDirectory)/terraform'
         inlineScript: |
+          $ErrorActionPreference = 'Continue'
           $SUBSCRIPTION_ID = "9e5ee3a1-f944-4c72-84bd-19ab1d56007f"
 
+          # Get current state list
+          $stateList = C:\terraform\terraform.exe state list 2>$null
+
           # Import AKS if exists in Azure but not in state
-          $aksExists = az aks show -g $(resourceGroupName) -n $(aksClusterName) 2>$null
-          $aksInState = C:\terraform\terraform.exe state show azurerm_kubernetes_cluster.aks 2>$null
-          if ($aksExists -and -not $aksInState) {
+          az aks show -g $(resourceGroupName) -n $(aksClusterName) 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0 -and $stateList -notcontains "azurerm_kubernetes_cluster.aks") {
             Write-Host "Importing AKS cluster..."
             C:\terraform\terraform.exe import azurerm_kubernetes_cluster.aks "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$(resourceGroupName)/providers/Microsoft.ContainerService/managedClusters/$(aksClusterName)"
           }
 
           # Import Storage Account if exists but not in state
-          $saExists = az storage account show -n stterraformpocdev -g $(resourceGroupName) 2>$null
-          $saInState = C:\terraform\terraform.exe state show azurerm_storage_account.tfstate 2>$null
-          if ($saExists -and -not $saInState) {
+          az storage account show -n stterraformpocdev -g $(resourceGroupName) 2>$null | Out-Null
+          if ($LASTEXITCODE -eq 0 -and $stateList -notcontains "azurerm_storage_account.tfstate") {
             Write-Host "Importing Storage Account..."
             C:\terraform\terraform.exe import azurerm_storage_account.tfstate "/subscriptions/$SUBSCRIPTION_ID/resourceGroups/$(resourceGroupName)/providers/Microsoft.Storage/storageAccounts/stterraformpocdev"
           }
 
           # Import Storage Container if not in state
-          $containerInState = C:\terraform\terraform.exe state show azurerm_storage_container.tfstate 2>$null
-          if (-not $containerInState) {
+          if ($stateList -notcontains "azurerm_storage_container.tfstate") {
             Write-Host "Importing Storage Container..."
             C:\terraform\terraform.exe import azurerm_storage_container.tfstate "https://stterraformpocdev.blob.core.windows.net/tfstate"
+            $LASTEXITCODE = 0
           }
 
           Write-Host "Import check complete."
+          exit 0
 
     - task: TerraformTaskV4@4
       displayName: 'Terraform Apply'
